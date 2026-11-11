@@ -743,7 +743,36 @@ docker stack rm appliance
 
 ### 部署到 GCP 前的準備
 
-GCP 節點無法使用本機建置的 images。先登入 registry，將版本化的 API 和 worker images 推送至所有 Swarm 節點都能存取的位置：
+以下為建立 VM 與連線的準備，**不是完整部署流程**。實際部署前仍需確認 VM 的 CPU、記憶體、磁碟、防火牆及備份規劃。GCP 資源可能產生費用，請先確認價格與預算。
+
+#### 建立 VM
+
+在 [Google Cloud Console 的 Compute Engine 頁面](https://console.cloud.google.com/compute/instances)選擇自己的專案，建立或選擇一台 VM。記下專案 ID、VM 名稱和所在 zone，供下方連線時使用。
+
+#### 安裝並初始化 gcloud
+
+在**本機電腦**依照 [Google Cloud CLI 官方安裝說明](https://docs.cloud.google.com/sdk/docs/install-sdk?hl=zh-tw)選擇適合的作業系統安裝方式。安裝完成後確認版本，並初始化：
+
+```bash
+gcloud version
+gcloud init
+```
+
+依提示登入 Google 帳號、選擇 GCP 專案；預設 region 和 zone 可依 VM 所在位置設定，也可稍後更改。不要分享登入驗證碼、SSH 私鑰或帳號憑證。
+
+#### SSH 連線到 VM
+
+仍在**本機終端機**執行，將以下佔位文字換成自己的 VM 名稱、zone 和專案 ID：
+
+```bash
+gcloud compute ssh <VM_NAME> --zone <ZONE> --project <PROJECT_ID>
+```
+
+首次連線可能提示建立 SSH 金鑰；建議設定私鑰保護密碼。連線需要適當的 GCP 權限及 VM 的 SSH 網路存取設定。連線成功後的指令會在 **VM 上**執行；輸入 `exit` 可返回本機。
+
+#### Image 與資料準備
+
+GCP 節點無法直接使用本機建置的 images。在有專案程式碼與 Docker 的建置主機上，登入 registry，將版本化的 API 和 worker images 推送至所有 Swarm 節點都能存取的位置：
 
 > **安全提醒：** 主 stack 現在包含 phpMyAdmin；下方部署指令也會啟動它並發布 `8082`。GCP 防火牆不要對公網開放 `8082`，只允許經由受信任的私有網路存取。
 
@@ -751,6 +780,11 @@ GCP 節點無法使用本機建置的 images。先登入 registry，將版本化
 docker login
 docker compose --env-file .env build worker api
 docker compose --env-file .env push worker api
+```
+
+完成 Swarm、節點標籤、網路、資料 volume、專案程式碼及 `.env` 等準備後，在部署主機的 Swarm manager 上執行：
+
+```bash
 python3 manage_env.py deploy appliance --with-registry-auth
 ```
 
