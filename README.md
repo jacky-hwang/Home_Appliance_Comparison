@@ -621,7 +621,7 @@ docker image ls jacky325/tibame_api
 docker image ls jacky325/tibame_crawler
 ```
 
-Swarm 的 MySQL 會使用外部 volume `home_appliance_comparison_mysql_data`；若由本機 Compose 遷移，這是既有的 MySQL 資料。部署前請在 MySQL 預定執行的 manager 節點確認 volume 存在，並先備份重要資料；不要用 `docker compose down -v` 或刪除該 volume。
+Swarm 的 MySQL 會使用外部 volume `home_appliance_comparison_mysql_data`；若由本機 Compose 遷移，這是既有的 MySQL 資料。部署前請在 MySQL 預定執行的節點確認 volume 存在，並先備份重要資料；不要用 `docker compose down -v` 或刪除該 volume。
 
 ```bash
 docker volume inspect home_appliance_comparison_mysql_data
@@ -751,6 +751,62 @@ phpMyAdmin 已包含在 `docker-compose.swarm.yml`，執行上方的 `docker sta
 ```bash
 docker stack rm appliance
 ```
+
+### GCP 四節點部署與更新
+
+以下是四台 VM 已加入同一 Swarm、資料及設定已準備好的範例。所有 `docker node`、`docker stack` 和 `manage_env.py` 指令都在 **manager 的專案目錄**執行；若目前使用者沒有 Docker 權限，請先設定適當權限。
+
+| 節點 | 服務 |
+|---|---|
+| `tibame`（manager） | Airflow、Portainer |
+| `mysql` | MySQL、API、phpMyAdmin |
+| `rabbitmq` | RabbitMQ、爬蟲 Flower、四個爬蟲 worker |
+| `redash` | Redash 網頁、scheduler、workers、PostgreSQL、Redis |
+
+Portainer Agent 為 global service，會在符合條件的每個節點執行。VM 名稱只是範例；請先用 `docker node ls` 確認實際節點名稱或 ID，並替換以下佔位文字。每種 label 只應設定在預定節點，舊節點上的同名 label 需移除。
+
+```bash
+docker node ls
+docker node update --label-add airflow=true <MANAGER_NODE>
+docker node update --label-add mysql=true --label-add api=true <MYSQL_NODE>
+docker node update --label-add rabbitmq=true \
+  --label-add crawler_airfryer=true --label-add crawler_fridge=true \
+  --label-add crawler_tv=true --label-add crawler_vacuum=true <RABBITMQ_NODE>
+docker node update --label-add redash=true <REDASH_NODE>
+```
+
+在 manager 的 `.env` 加入下列設定，其他資料庫、RabbitMQ、Airflow 帳密與 image 版本依環境設定：
+
+```dotenv
+MYSQL_PLACEMENT_CONSTRAINT=node.labels.mysql == true
+PHPMYADMIN_PLACEMENT_CONSTRAINT=node.labels.mysql == true
+RABBITMQ_PLACEMENT_CONSTRAINT=node.labels.rabbitmq == true
+FLOWER_PLACEMENT_CONSTRAINT=node.labels.rabbitmq == true
+```
+
+使用 Compose 檔搭配 **Docker Swarm stack** 部署，而不是 `docker compose up`：後者只會在執行指令的單台主機啟動容器，不會依 Swarm labels 分配到四台。
+
+| Stack | Compose 設定檔 |
+|---|---|
+| `appliance` | [`docker-compose.swarm.yml`](./docker-compose.swarm.yml) |
+| `home_appliance_airflow` | [`docker-compose.airflow.swarm.yml`](./docker-compose.airflow.swarm.yml) |
+| `home_appliance_redash` | [`services/docker-compose-redash-swarm.yml`](./services/docker-compose-redash-swarm.yml) |
+
+準備好目標節點的 volumes 後，在 manager 更新程式碼、檢查及部署。下列工具會讀取 `.env`，並以對應的 Compose 檔執行 `docker stack deploy`，不需把帳密貼在指令中。既有 Airflow 應保留原本 metadata、使用者和密鑰；全新環境需先完成 [Airflow 初始化](#airflow-swarm-排程)。
+
+```bash
+git pull --ff-only
+python3 manage_env.py check appliance
+python3 manage_env.py deploy appliance
+python3 manage_env.py check home_appliance_airflow
+python3 manage_env.py deploy home_appliance_airflow
+docker stack services appliance
+docker stack services home_appliance_airflow
+curl -fsS http://127.0.0.1:8889/health
+curl -fsS http://127.0.0.1:8083/health
+```
+
+更新 Redash 前請參考 [Redash 章節](#redash-swarm-儀表板)區分全新初始化和既有資料；既有資料與密鑰不可重建或覆蓋。重新部署可能改變服務副本數，請避免同時啟用本機與 GCP 的排程。
 
 ### 部署到 GCP 前的準備
 
