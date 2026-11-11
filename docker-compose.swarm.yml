@@ -37,7 +37,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - ${RABBITMQ_PLACEMENT_CONSTRAINT:-node.role == manager}
       restart_policy:
         condition: any
 
@@ -62,7 +62,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - ${FLOWER_PLACEMENT_CONSTRAINT:-node.role == manager}
       restart_policy:
         condition: any
 
@@ -100,7 +100,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - ${MYSQL_PLACEMENT_CONSTRAINT:-node.role == manager}
       restart_policy:
         condition: any
 
@@ -145,7 +145,7 @@ services:
       replicas: 1
       placement:
         constraints:
-          - node.role == manager
+          - ${PHPMYADMIN_PLACEMENT_CONSTRAINT:-node.role == manager}
       restart_policy:
         condition: any
 

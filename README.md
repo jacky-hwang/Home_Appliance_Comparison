@@ -582,6 +582,17 @@ docker compose --profile multi-queue down
 
 本機單節點測試時，在唯一的 node 設定 `api=true`、`airflow=true` 與四個 worker labels：`crawler_airfryer=true`、`crawler_fridge=true`、`crawler_tv=true`、`crawler_vacuum=true`，API、Airflow 和四個 worker 都會排在該 node。之後改為雲端雙節點時，將 `crawler_airfryer=true`、`crawler_fridge=true` 放在第一個 node，並將 `crawler_tv=true`、`crawler_vacuum=true` 放在第二個 node；在預定執行 API 的 node 設定 `api=true`，並只在預定執行 Airflow 的 manager node 設定 `airflow=true`。兩個 node 必須先加入同一個 Swarm。每個服務維持 1 個 replica。Labels 是 node 上的 key/value，不會建立新 node；若缺少服務對應的 label，服務會停在 `Pending`。API 和 workers 使用 `{{.Task.Slot}}` hostname，例如 `api.1`、`airfryer.1`；擴增 replicas 時可依 slot 區分 task。
 
+MySQL、RabbitMQ、phpMyAdmin 和爬蟲 Flower 預設仍限制在 manager。若要在資料安全搬移並驗證完成後，改由指定節點執行，可在 `.env` 設定：
+
+```dotenv
+MYSQL_PLACEMENT_CONSTRAINT=node.labels.mysql == true
+RABBITMQ_PLACEMENT_CONSTRAINT=node.labels.rabbitmq == true
+PHPMYADMIN_PLACEMENT_CONSTRAINT=node.labels.mysql == true
+FLOWER_PLACEMENT_CONSTRAINT=node.labels.rabbitmq == true
+```
+
+分別只在目標節點設定 `mysql=true` 和 `rabbitmq=true`。修改 `.env` 或標籤不會搬移資料；部署更新可能立即重新排程服務。MySQL 和 RabbitMQ 的 volume 都是節點本機儲存，切換前須停止寫入、備份並還原至正確節點，確認資料和服務後再啟動依賴服務。保留來源資料以便回復；不要對尚未還原的空 volume 部署。未設定對應項目時，服務仍使用 `node.role == manager`。
+
 單節點範例：在 manager 執行，將 `<node-name>` 換成 `docker node ls` 顯示的實際名稱；多節點時請依規劃分別設定：
 
 ```bash
@@ -790,7 +801,7 @@ python3 manage_env.py deploy appliance --with-registry-auth
 
 目前 `portainer.yml` 發布 HTTP `9000` 和選用的 `8000` Edge 通道，沒有發布 HTTPS `9443`；雲端部署前應將 Portainer 改為 HTTPS，並限制防火牆來源。不要將 Portainer `9000`/`9443`/`8000`、Agent `9001`、MySQL `3306`、RabbitMQ AMQP `5672`、管理頁 `15674` 或 Flower `5557` 對公網公開。Swarm 節點間必要通訊只允許在私有網路中；Docker Desktop 的 Swarm 也不能直接當作 GCP Swarm 使用。
 
-目前 Swarm 檔案引用本機外部 volume `home_appliance_comparison_mysql_data`；GCP 節點不會自動有這個 volume，直接部署可能失敗。雲端部署前要改成 GCP 節點可用的持久化磁碟／volume，並規劃資料備份與還原。`appliance` stack 會建立 attachable overlay network `appliance_redash_mysql_network`，供獨立 Redash Swarm stack 連到 MySQL。其他主機部署 Redash 前，需先部署 `appliance` 並安全提供根目錄 `.env`。全新建立儀表板不需要舊備份；若要搬移既有 Redash 環境，則需安全備份並還原其 PostgreSQL、Redis 資料及相關密鑰，並驗證還原結果。建立同名空 volumes 不會搬移舊查詢或儀表板資料。RabbitMQ 仍使用 manager node 的 local named volume；這不是高可用或備份方案。確認資料層穩定後，才調整 API 或 worker 副本數：
+目前 Swarm 檔案引用本機外部 volume `home_appliance_comparison_mysql_data`；GCP 節點不會自動有這個 volume，直接部署可能失敗。雲端部署前要改成 GCP 節點可用的持久化磁碟／volume，並規劃資料備份與還原。`appliance` stack 會建立 attachable overlay network `appliance_redash_mysql_network`，供獨立 Redash Swarm stack 連到 MySQL。其他主機部署 Redash 前，需先部署 `appliance` 並安全提供根目錄 `.env`。全新建立儀表板不需要舊備份；若要搬移既有 Redash 環境，則需安全備份並還原其 PostgreSQL、Redis 資料及相關密鑰，並驗證還原結果。建立同名空 volumes 不會搬移舊查詢或儀表板資料。RabbitMQ 使用所在節點的 local named volume；這不是高可用或備份方案。確認資料層穩定後，才調整 API 或 worker 副本數：
 
 ```bash
 docker service scale appliance_worker_airfryer=2
