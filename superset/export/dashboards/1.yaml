@@ -1,0 +1,157 @@
+dashboard_title: 家電商品上榜排行
+description: null
+css: null
+slug: null
+certified_by: null
+certification_details: null
+published: true
+uuid: b8b6a828-948e-447a-9a6e-8ba6b87a2bcf
+position:
+  DASHBOARD_VERSION_KEY: v2
+  ROOT_ID:
+    id: ROOT_ID
+    type: ROOT
+    children:
+    - GRID_ID
+  GRID_ID:
+    id: GRID_ID
+    type: GRID
+    children:
+    - ROW-rank
+    - ROW-details
+    parents:
+    - ROOT_ID
+  HEADER_ID:
+    id: HEADER_ID
+    type: HEADER
+    meta:
+      text: 家電商品上榜排行
+  ROW-rank:
+    id: ROW-rank
+    type: ROW
+    children:
+    - CHART-2
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-2:
+    id: CHART-2
+    type: CHART
+    children: []
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-rank
+    meta:
+      chartId: 2
+      height: 75
+      width: 12
+      sliceName: 家電商品上榜天數 Top 20
+      uuid: b8edd286-2f0e-4b1a-8189-a0f3df277133
+  ROW-details:
+    id: ROW-details
+    type: ROW
+    children:
+    - CHART-3
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    meta:
+      background: BACKGROUND_TRANSPARENT
+  CHART-3:
+    id: CHART-3
+    type: CHART
+    children: []
+    parents:
+    - ROOT_ID
+    - GRID_ID
+    - ROW-details
+    meta:
+      chartId: 3
+      height: 45
+      width: 12
+      sliceName: 上榜商品完整名稱
+      uuid: 0b2b22c3-a556-4de7-b2bb-f9a2630df51f
+metadata:
+  show_native_filters: true
+  native_filter_configuration:
+  - id: NATIVE_FILTER-category
+    name: 家電種類
+    filterType: filter_select
+    targets:
+    - column:
+        name: category
+      datasetUuid: 40d5470c-88c6-4d80-94e0-858e3236d228
+    controlValues:
+      enableEmptyFilter: false
+      defaultToFirstItem: false
+      multiSelect: false
+      searchAllOptions: false
+      inverseSelection: false
+    defaultDataMask:
+      extraFormData:
+        filters:
+        - col: category
+          op: IN
+          val:
+          - 氣炸鍋
+      filterState:
+        value:
+        - 氣炸鍋
+        label: 氣炸鍋
+      ownState: {}
+    cascadeParentIds: []
+    scope:
+      rootPath:
+      - ROOT_ID
+      excluded: []
+    type: NATIVE_FILTER
+    description: 選擇家電分類
+    chartsInScope:
+    - 2
+    tabsInScope: []
+  chart_configuration:
+    '2':
+      id: 2
+      crossFilters:
+        scope: global
+        chartsInScope: []
+  global_chart_configuration:
+    scope:
+      rootPath:
+      - ROOT_ID
+      excluded: []
+    chartsInScope:
+    - 2
+  map_label_colors:
+    DMAC0E-A900I6WN0: '#1FA8C9'
+    DMAC0E-A900I6WN3: '#454E7C'
+    DMAC0E-A900I6WNL: '#5AC189'
+    DMAC0E-A900IEYC6: '#FF7F44'
+    DMAC0E-A900ITEY0: '#666666'
+    DMAC0E-A900ITF5A: '#E04355'
+    DMAC0E-A900J5TC3: '#FCC700'
+    DMACCH-A900JGXIC: '#A868B7'
+    DMAG2J-A900IJ9VN: '#3CCCCB'
+    DMAG5E-1900H30PZ: '#A38F79'
+    DMAG5E-A900AGWC1: '#8FD3E4'
+    DMAG5E-A900B5XVE: '#A1A6BD'
+    DMAG5E-A900GFUKN: '#ACE1C4'
+    DMAG5E-A900H1P29: '#FEC0A1'
+    DMAG5E-A900HUNSK: '#B2B2B2'
+    DMAGNZ-A900KDW4G: '#EFA1AA'
+    DMAGRL-A900I2ZY6: '#FDE380'
+    DMBH27-A900IYWXW: '#D3B3DA'
+    DMAG5E-A900J2DXS: '#9EE5E5'
+    DMAG5E-A900IX4J8: '#D1C6BC'
+  timed_refresh_immune_slices: []
+  expanded_slices: {}
+  refresh_frequency: 0
+  color_scheme: ''
+  label_colors: {}
+  shared_label_colors: []
+  color_scheme_domain: []
+  cross_filters_enabled: true
+version: 1.0.0

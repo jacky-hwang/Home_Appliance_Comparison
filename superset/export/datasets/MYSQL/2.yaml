@@ -1,0 +1,96 @@
+table_name: 家電商品上榜天數
+main_dttm_col: null
+description: null
+default_endpoint: null
+offset: 0
+cache_timeout: null
+catalog: null
+schema: tibame
+sql: "\nSELECT category, product_id,\n       MAX(CASE WHEN name_rank = 1 THEN product_name\
+  \ END) AS product_name,\n       CONCAT(LEFT(MAX(CASE WHEN name_rank = 1 THEN product_name\
+  \ END), 12), '… ', product_id) AS product_label,\n       COUNT(DISTINCT scrape_date)\
+  \ AS days_on_chart\nFROM (\n    SELECT category, product_id, product_name, scrape_date,\n\
+  \           ROW_NUMBER() OVER (\n               PARTITION BY category, product_id\n\
+  \               ORDER BY scrape_date DESC, rank_position ASC, id DESC\n        \
+  \   ) AS name_rank\n    FROM crawl_results\n) AS rankings\nGROUP BY category, product_id\n"
+params: null
+template_params: null
+filter_select_enabled: true
+fetch_values_predicate: null
+extra: null
+normalize_columns: false
+always_filter_main_dttm: false
+uuid: 40d5470c-88c6-4d80-94e0-858e3236d228
+metrics:
+- metric_name: count
+  verbose_name: COUNT(*)
+  metric_type: count
+  expression: COUNT(*)
+  description: null
+  d3format: null
+  currency: null
+  extra: null
+  warning_text: null
+columns:
+- column_name: product_id
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: VAR_STRING
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: category
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: VAR_STRING
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: product_name
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: BLOB
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: days_on_chart
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: LONGLONG
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: ''
+  description: null
+  python_date_format: null
+  extra: null
+- column_name: product_label
+  verbose_name: null
+  is_dttm: false
+  is_active: true
+  type: VAR_STRING
+  advanced_data_type: null
+  groupby: true
+  filterable: true
+  expression: null
+  description: null
+  python_date_format: null
+  extra: null
+version: 1.0.0
+database_uuid: eb9645d4-0b97-4e9d-a8e4-59b2c450e660

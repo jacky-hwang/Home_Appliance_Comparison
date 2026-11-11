@@ -1,0 +1,55 @@
+# 本機和 GCP 均使用 Docker Swarm；部署步驟見專案 README。
+# SQLite metadata 與 volume 位於指定節點，適合單節點測試。
+version: "3.8"
+
+services:
+  superset:
+    image: apache/superset:4.1.4-dev
+    environment:
+      SUPERSET_PORT: "8088"
+    secrets:
+      - source: superset_secret_key
+        target: superset_secret_key
+        mode: 0444
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        export SUPERSET_SECRET_KEY="$$(cat /run/secrets/superset_secret_key)"
+        test -n "$$SUPERSET_SECRET_KEY"
+        superset db upgrade
+        superset init
+        exec /usr/bin/run-server.sh
+    ports:
+      - target: 8088
+        published: 8088
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - superset_home:/app/superset_home
+    networks:
+      - superset_internal
+      - appliance_mysql
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.superset == true
+      update_config:
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+
+networks:
+  superset_internal:
+    driver: overlay
+  appliance_mysql:
+    external: true
+    name: appliance_redash_mysql_network
+
+secrets:
+  superset_secret_key:
+    external: true
+
+volumes:
+  superset_home:

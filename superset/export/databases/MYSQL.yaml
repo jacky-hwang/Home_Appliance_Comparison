@@ -1,0 +1,12 @@
+database_name: MYSQL
+sqlalchemy_uri: mysql://mysql:3306/tibame
+cache_timeout: null
+expose_in_sqllab: true
+allow_run_async: false
+allow_ctas: false
+allow_cvas: false
+allow_dml: false
+allow_file_upload: false
+extra: {}
+uuid: eb9645d4-0b97-4e9d-a8e4-59b2c450e660
+version: 1.0.0

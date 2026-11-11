@@ -20,6 +20,7 @@
   - [分類 queue 與每日排程](#分類-queue-與每日排程)
 - [API 使用與開發](#api-使用與開發)
 - [Redash Swarm 儀表板](#redash-swarm-儀表板)
+- [Superset Swarm 測試](#superset-swarm-測試)
 - [建置與部署 Docker image](#建置與部署-docker-image)
 - [Docker Swarm 本機演練與 GCP 部署準備](#docker-swarm-本機演練與-gcp-部署準備)
   - [Airflow Swarm 排程](#airflow-swarm-排程)
@@ -501,6 +502,35 @@ Redash 網頁為 <http://localhost:5006>。Swarm ingress 的 `5006` 不限於 lo
 若 Redash 供多人使用，應另外建立僅具備查詢權限的 MySQL 帳號，不要使用管理或寫入帳號。已有儀表板時，請保留既有 PostgreSQL 資料和金鑰；需要完整搬移既有環境時仍須安全備份並驗證還原。
 
 以上指令在專案根目錄執行。
+
+## Superset Swarm 測試
+
+本機與 GCP 可使用同一份 `superset/superset.yml`，但各自有獨立的帳號、資料和密鑰，不會自動同步。此配置使用單副本 SQLite，適合測試，不建議作為長期正式環境。Superset 的 volume 在執行節點本機；變更節點前需先備份並還原資料及原密鑰。
+
+先確認 Docker Swarm 已啟用、`appliance_redash_mysql_network` overlay 網路已存在，並確認目標節點有足夠記憶體及磁碟空間。在 manager 查看節點，並將 `superset=true` 標記在**唯一一個**要執行 Superset 的節點：
+
+```bash
+docker node ls
+docker node update --label-add superset=true <節點名稱>
+```
+
+以下指令在 manager 的專案根目錄執行；首次建立密鑰，已有密鑰時不可覆蓋或重新產生：
+
+```bash
+openssl rand -hex 48 | docker secret create superset_secret_key -
+docker stack deploy -c superset/superset.yml superset
+docker stack services superset
+docker service logs --tail 50 superset_superset
+```
+
+服務初始化完成後，在**實際執行 Superset 的節點**互動建立管理員帳號和密碼；不要將密碼寫入 YAML：
+
+```bash
+docker exec -it "$(docker ps -q --filter label=com.docker.swarm.service.name=superset_superset)" \
+  sh -c 'export SUPERSET_SECRET_KEY="$(cat /run/secrets/superset_secret_key)"; exec superset fab create-admin'
+```
+
+本機開啟 <http://localhost:8088>。Superset 使用 Swarm ingress 發布 `8088`，會在各節點對外監聽，並非僅限本機；請先透過防火牆限制來源，GCP 建議使用 SSH tunnel 並避免公開管理介面。登入後可自行設定 MySQL 資料來源，建議使用唯讀帳號；網路已連接現有 MySQL overlay，但不會自動建立資料來源或儀表板。停止 stack 可執行 `docker stack rm superset`，不會刪除 volume 或密鑰。
 
 ## 建置與部署 Docker image
 

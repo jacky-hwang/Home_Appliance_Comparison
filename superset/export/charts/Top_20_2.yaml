@@ -1,0 +1,45 @@
+slice_name: 家電商品上榜天數 Top 20
+description: null
+certified_by: null
+certification_details: null
+viz_type: echarts_timeseries_bar
+params:
+  datasource: 2__table
+  viz_type: echarts_timeseries_bar
+  x_axis: product_label
+  metrics:
+  - expressionType: SQL
+    sqlExpression: MAX(days_on_chart)
+    label: 上榜天數
+  groupby: []
+  adhoc_filters: []
+  order_desc: true
+  row_limit: 20
+  orientation: horizontal
+  x_axis_sort: 上榜天數
+  x_axis_sort_asc: false
+  show_legend: false
+  show_value: true
+  truncate_metric: true
+  show_tooltip: true
+  rich_tooltip: true
+  color_scheme: supersetColors
+  y_axis_title: ''
+  x_axis_sort_series: 上榜天數
+  x_axis_sort_series_ascending: false
+query_context: '{"datasource": {"id": 2, "type": "table"}, "queries": [{"columns":
+  ["product_label"], "metrics": [{"expressionType": "SQL", "sqlExpression": "MAX(days_on_chart)",
+  "label": "上榜天數"}], "orderby": [[{"expressionType": "SQL", "sqlExpression": "MAX(days_on_chart)",
+  "label": "上榜天數"}, false]], "row_limit": 20, "time_range": "No filter"}], "result_format":
+  "json", "result_type": "full", "form_data": {"datasource": "2__table", "viz_type":
+  "echarts_timeseries_bar", "x_axis": "product_label", "metrics": [{"expressionType":
+  "SQL", "sqlExpression": "MAX(days_on_chart)", "label": "上榜天數"}], "groupby": [],
+  "adhoc_filters": [], "order_desc": true, "row_limit": 20, "orientation": "horizontal",
+  "x_axis_sort": "上榜天數", "x_axis_sort_asc": false, "show_legend": false, "show_value":
+  true, "truncate_metric": true, "show_tooltip": true, "rich_tooltip": true, "color_scheme":
+  "supersetColors", "y_axis_title": "", "x_axis_sort_series": "上榜天數", "x_axis_sort_series_ascending":
+  false}}'
+cache_timeout: null
+uuid: b8edd286-2f0e-4b1a-8189-a0f3df277133
+version: 1.0.0
+dataset_uuid: 40d5470c-88c6-4d80-94e0-858e3236d228
