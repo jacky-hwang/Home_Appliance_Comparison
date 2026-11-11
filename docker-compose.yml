@@ -1,7 +1,7 @@
 x-worker-common: &worker-common
   build:
     context: .
-  image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+  image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
   environment:
     TZ: Asia/Taipei
     WORKER_ACCOUNT: ${WORKER_ACCOUNT:-worker}
@@ -89,7 +89,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.1.0}
+    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.0.3}
     environment:
       DB_HOST: mysql
       DB_PORT: "3306"
@@ -148,7 +148,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     command: ["python", "-m", "crawler.scheduler"]
     environment:
       TZ: Asia/Taipei
@@ -165,7 +165,7 @@ services:
     profiles: ["multi-queue"]
 
   producer:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     command: ["python", "-m", "crawler.producer"]
     environment:
       TZ: Asia/Taipei
@@ -182,7 +182,7 @@ services:
       - tools
 
   producer_multi_queue:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     command: ["python", "-m", "crawler.producer_multi_queue"]
     environment:
       TZ: Asia/Taipei

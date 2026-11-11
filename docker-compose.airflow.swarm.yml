@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-airflow-common: &airflow-common
-  image: jacky325/tibame_airflow:${AIRFLOW_IMAGE_VERSION:-0.0.2}
+  image: jacky325/tibame_airflow:${AIRFLOW_IMAGE_VERSION:-0.0.3}
   environment:
     TZ: Asia/Taipei
     WORKER_ACCOUNT: ${WORKER_ACCOUNT:?Set WORKER_ACCOUNT in .env}

@@ -506,8 +506,8 @@ Redash 網頁為 <http://localhost:5006>。Swarm ingress 的 `5006` 不限於 lo
 
 主 Compose 使用以下 image 版本，實際版本由 `local.ini` 的 `[DOCKER]` 區段產生至 `.env`：
 
-- Crawler：`jacky325/tibame_crawler`（範例 `DOCKER_IMAGE_VERSION=0.0.7`）
-- API：`jacky325/tibame_api`（範例 `API_IMAGE_VERSION=0.0.2`）
+- Crawler：`jacky325/tibame_crawler`（範例 `DOCKER_IMAGE_VERSION=0.0.8`）
+- API：`jacky325/tibame_api`（範例 `API_IMAGE_VERSION=0.0.3`）
 
 ### 建置及發布
 
@@ -686,10 +686,10 @@ python3 manage_env.py init airflow
 
 從 PostgreSQL 切換到全新的 MySQL 資料庫不會自動搬移帳號、密碼、DAG 狀態或執行歷史。需保留時，請先備份並規劃遷移；切換前應停止排程，避免重複派送。移除服務不會自動刪除舊 PostgreSQL volume；若仍保留舊版回復設定檔，請安全保管並限制存取。
 
-建置 Airflow image。更新 DAG 或 `airflow.cfg` 後應變更版本並重新建置；將相同版本寫入根目錄 `.env` 的 `AIRFLOW_IMAGE_VERSION`，否則部署會使用預設的 `0.0.2`。多節點部署還要先推送到 registry：
+建置 Airflow image。更新 DAG 或 `airflow.cfg` 後應變更版本並重新建置；將相同版本寫入根目錄 `.env` 的 `AIRFLOW_IMAGE_VERSION`，否則部署會使用預設的 `0.0.3`。多節點部署還要先推送到 registry：
 
 ```bash
-export AIRFLOW_IMAGE_VERSION=0.0.2
+export AIRFLOW_IMAGE_VERSION=0.0.3
 docker build -f Dockerfile.airflow -t "jacky325/tibame_airflow:${AIRFLOW_IMAGE_VERSION}" .
 # 多節點部署時另執行：docker push "jacky325/tibame_airflow:${AIRFLOW_IMAGE_VERSION}"
 ```

@@ -44,7 +44,7 @@ def main() -> None:
         parser.error(f"Missing settings in [{section_name}]: {', '.join(sorted(missing_keys))}")
 
     settings = dict(values)
-    settings.setdefault("docker_image_version", "0.0.4")
+    settings.setdefault("docker_image_version", "0.0.8")
     settings["rabbitmq_default_user"] = settings["worker_account"]
     settings["rabbitmq_default_pass"] = settings["worker_password"]
     replacements = {key.upper(): value for key, value in settings.items()}

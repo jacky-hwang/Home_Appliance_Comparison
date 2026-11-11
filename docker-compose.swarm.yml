@@ -105,7 +105,7 @@ services:
         condition: any
 
   api:
-    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.0.2}
+    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.0.3}
     hostname: "api.{{.Task.Slot}}"
     environment:
       DB_HOST: mysql
@@ -150,7 +150,7 @@ services:
         condition: any
 
   worker_airfryer:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     hostname: "airfryer.{{.Task.Slot}}"
     environment: *crawler-env
     command:
@@ -179,7 +179,7 @@ services:
         condition: any
 
   worker_fridge:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     hostname: "fridge.{{.Task.Slot}}"
     environment: *crawler-env
     command:
@@ -208,7 +208,7 @@ services:
         condition: any
 
   worker_tv:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     hostname: "tv.{{.Task.Slot}}"
     environment: *crawler-env
     command:
@@ -237,7 +237,7 @@ services:
         condition: any
 
   worker_vacuum:
-    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.8}
     hostname: "vacuum.{{.Task.Slot}}"
     environment: *crawler-env
     command:
