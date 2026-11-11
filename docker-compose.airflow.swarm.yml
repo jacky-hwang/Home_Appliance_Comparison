@@ -1,0 +1,98 @@
+version: "3.8"
+
+x-airflow-common: &airflow-common
+  image: jacky325/tibame_airflow:${AIRFLOW_IMAGE_VERSION:-0.0.2}
+  environment:
+    TZ: Asia/Taipei
+    WORKER_ACCOUNT: ${WORKER_ACCOUNT:?Set WORKER_ACCOUNT in .env}
+    WORKER_PASSWORD: ${WORKER_PASSWORD:?Set WORKER_PASSWORD in .env}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN:?Set Airflow database connection in .env}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:?Set Airflow Fernet key in .env}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY:?Set Airflow web secret in .env}
+  volumes:
+    - airflow_logs:/opt/airflow/logs
+  networks:
+    - airflow_internal
+    - crawler_network
+  deploy:
+    replicas: 1
+    placement:
+      constraints:
+        - node.role == manager
+        - node.labels.airflow == true
+    restart_policy:
+      condition: any
+    update_config:
+      order: stop-first
+
+services:
+  # Airflow CeleryExecutor 專用 broker 與結果儲存；不對外發布連接埠。
+  airflow-redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - airflow_redis:/data
+    networks:
+      - airflow_internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.airflow == true
+      restart_policy:
+        condition: any
+
+  scheduler:
+    <<: *airflow-common
+    command: ["bash", "-c", "airflow db migrate && exec airflow scheduler"]
+
+  # 執行 Airflow DAG 的派送任務，不是實際執行爬蟲的 worker。
+  worker:
+    <<: *airflow-common
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 120 && exec airflow celery worker --without-mingle --without-gossip"]
+
+  # 監控 Airflow worker；與監控爬蟲的 appliance_flower 分開。
+  flower:
+    image: mher/flower:2.0
+    environment:
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:?Set FLOWER_BASIC_AUTH in .env}
+    command:
+      - sh
+      - -c
+      - 'case "$${FLOWER_BASIC_AUTH:-}" in ""|:*|*:|*,*|*:*:*) echo "Set FLOWER_BASIC_AUTH to one nonempty username:password pair" >&2; exit 1;; *:*) exec celery --broker=redis://airflow-redis:6379/0 flower --port=5555;; *) echo "Set FLOWER_BASIC_AUTH to one nonempty username:password pair" >&2; exit 1;; esac'
+    ports:
+      - target: 5555
+        published: 5556
+        protocol: tcp
+        mode: ingress
+    networks:
+      - airflow_internal
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+          - node.labels.airflow == true
+      restart_policy:
+        condition: any
+
+  webserver:
+    <<: *airflow-common
+    command: ["bash", "-c", "airflow db check-migrations --migration-wait-timeout 120 && exec airflow webserver"]
+    ports:
+      - target: 8080
+        published: 8083
+        protocol: tcp
+        mode: ingress
+
+volumes:
+  airflow_logs:
+  airflow_redis:
+
+networks:
+  airflow_internal:
+    driver: overlay
+  crawler_network:
+    external: true
+    name: appliance_crawler_network

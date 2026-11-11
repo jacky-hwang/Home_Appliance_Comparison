@@ -1,0 +1,208 @@
+x-worker-common: &worker-common
+  build:
+    context: .
+  image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+  environment:
+    TZ: Asia/Taipei
+    WORKER_ACCOUNT: ${WORKER_ACCOUNT:-worker}
+    WORKER_PASSWORD: ${WORKER_PASSWORD:-worker}
+    RABBITMQ_HOST: rabbitmq
+    RABBITMQ_PORT: "5672"
+    CSV_OUTPUT_DIR: /data
+    MYSQL_HOST: mysql
+    MYSQL_PORT: 3306
+    MYSQL_DATABASE: ${MYSQL_DATABASE:-tibame}
+    MYSQL_USER: ${MYSQL_USER:-tibame}
+    MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_dev_password}
+  volumes:
+    - ./data:/data
+  networks:
+    - crawler_network
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    mysql:
+      condition: service_healthy
+  restart: always
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${WORKER_ACCOUNT:-worker}
+      RABBITMQ_DEFAULT_PASS: ${WORKER_PASSWORD:-worker}
+    ports:
+      - "5674:5672"
+      - "15674:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - crawler_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  flower:
+    image: mher/flower:2.0
+    restart: always
+    command:
+      - celery
+      - --broker=amqp://${WORKER_ACCOUNT:-worker}:${WORKER_PASSWORD:-worker}@rabbitmq:${RABBITMQ_PORT:-5672}//
+      - flower
+      - --port=5555
+    ports:
+      - "5557:5555"
+    networks:
+      - crawler_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      TZ: Asia/Taipei
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tibame}
+      MYSQL_USER: ${MYSQL_USER:-tibame}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_dev_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local_dev_root_password}
+    ports:
+      - "127.0.0.1:3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      - ./database/migrations/001_create_crawl_results.sql:/docker-entrypoint-initdb.d/20-create-crawl-results.sql:ro
+    networks:
+      - crawler_network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.1.0}
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      TZ: Asia/Taipei
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tibame}
+      MYSQL_USER: ${MYSQL_USER:-tibame}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-local_dev_password}
+    ports:
+      - "8889:8888"
+    networks:
+      - crawler_network
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    restart: always
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    ports:
+      - "127.0.0.1:8082:80"
+    networks:
+      - crawler_network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  worker:
+    <<: *worker-common
+    command: ["celery", "-A", "crawler.worker", "worker", "--loglevel=info", "-E", "--concurrency=1", "-Q", "celery", "--hostname=celery@worker"]
+
+  worker_airfryer:
+    <<: *worker-common
+    command: ["celery", "-A", "crawler.worker", "worker", "--loglevel=info", "-E", "--concurrency=1", "-Q", "airfryer", "--hostname=airfryer@worker-airfryer"]
+    profiles: ["multi-queue"]
+
+  worker_fridge:
+    <<: *worker-common
+    command: ["celery", "-A", "crawler.worker", "worker", "--loglevel=info", "-E", "--concurrency=1", "-Q", "fridge", "--hostname=fridge@worker-fridge"]
+    profiles: ["multi-queue"]
+
+  worker_tv:
+    <<: *worker-common
+    command: ["celery", "-A", "crawler.worker", "worker", "--loglevel=info", "-E", "--concurrency=1", "-Q", "tv", "--hostname=tv@worker-tv"]
+    profiles: ["multi-queue"]
+
+  worker_vacuum:
+    <<: *worker-common
+    command: ["celery", "-A", "crawler.worker", "worker", "--loglevel=info", "-E", "--concurrency=1", "-Q", "vacuum", "--hostname=vacuum@worker-vacuum"]
+    profiles: ["multi-queue"]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    command: ["python", "-m", "crawler.scheduler"]
+    environment:
+      TZ: Asia/Taipei
+      WORKER_ACCOUNT: ${WORKER_ACCOUNT:-worker}
+      WORKER_PASSWORD: ${WORKER_PASSWORD:-worker}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+    networks:
+      - crawler_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: always
+    profiles: ["multi-queue"]
+
+  producer:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    command: ["python", "-m", "crawler.producer"]
+    environment:
+      TZ: Asia/Taipei
+      WORKER_ACCOUNT: ${WORKER_ACCOUNT:-worker}
+      WORKER_PASSWORD: ${WORKER_PASSWORD:-worker}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+    networks:
+      - crawler_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    profiles:
+      - tools
+
+  producer_multi_queue:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.5}
+    command: ["python", "-m", "crawler.producer_multi_queue"]
+    environment:
+      TZ: Asia/Taipei
+      WORKER_ACCOUNT: ${WORKER_ACCOUNT:-worker}
+      WORKER_PASSWORD: ${WORKER_PASSWORD:-worker}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: "5672"
+    networks:
+      - crawler_network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    profiles:
+      - tools
+
+volumes:
+  rabbitmq_data:
+  mysql_data:
+
+networks:
+  crawler_network:
+    name: home_appliance_comparison_network
+    driver: bridge

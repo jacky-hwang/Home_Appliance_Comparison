@@ -1,0 +1,114 @@
+version: "3.8"
+
+x-redash-env: &redash-env
+  PYTHONUNBUFFERED: "0"
+  REDASH_LOG_LEVEL: INFO
+  REDASH_REDIS_URL: redis://redis:6379/0
+  REDASH_COOKIE_SECRET: ${REDASH_COOKIE_SECRET:?Set REDASH_COOKIE_SECRET in .env}
+  REDASH_SECRET_KEY: ${REDASH_SECRET_KEY:?Set REDASH_SECRET_KEY in .env}
+  REDASH_DATABASE_URL: "postgresql://postgres:${REDASH_POSTGRES_PASSWORD:?Set REDASH_POSTGRES_PASSWORD in .env}@postgres/postgres"
+  REDASH_WEB_WORKERS: "1"
+  SQLALCHEMY_ENABLE_POOL_PRE_PING: "True"
+
+x-redash-deploy: &redash-deploy
+  replicas: 1
+  placement:
+    constraints:
+      - node.labels.redash == true
+  restart_policy:
+    condition: any
+
+services:
+  redash:
+    image: redash/redash:10.1.0.b50633
+    command: server
+    environment: *redash-env
+    ports:
+      - target: 5000
+        published: 5006
+        protocol: tcp
+        mode: ingress
+    networks:
+      - redash_internal
+    deploy: *redash-deploy
+
+  scheduler:
+    image: redash/redash:10.1.0.b50633
+    command: scheduler
+    environment:
+      <<: *redash-env
+      QUEUES: celery
+      WORKERS_COUNT: "1"
+    networks:
+      - redash_internal
+    deploy: *redash-deploy
+
+  scheduled_worker:
+    image: redash/redash:10.1.0.b50633
+    command: worker
+    environment:
+      <<: *redash-env
+      QUEUES: scheduled_queries,schemas
+      WORKERS_COUNT: "1"
+    networks:
+      - redash_internal
+      - appliance_mysql
+    deploy: *redash-deploy
+
+  adhoc_worker:
+    image: redash/redash:10.1.0.b50633
+    command: worker
+    environment:
+      <<: *redash-env
+      QUEUES: queries
+      WORKERS_COUNT: "2"
+    networks:
+      - redash_internal
+      - appliance_mysql
+    deploy: *redash-deploy
+
+  redis:
+    image: redis:5.0
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redash_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - redash_internal
+    deploy: *redash-deploy
+
+  postgres:
+    image: postgres:9.6-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${REDASH_POSTGRES_PASSWORD:?Set REDASH_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+    volumes:
+      - redash_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - redash_internal
+    deploy: *redash-deploy
+
+networks:
+  redash_internal:
+    driver: overlay
+  appliance_mysql:
+    external: true
+    name: appliance_redash_mysql_network
+
+volumes:
+  redash_postgres_data:
+    external: true
+    name: home_appliance_redash_redash_postgres_data
+  redash_redis_data:
+    external: true
+    name: home_appliance_redash_redash_redis_data

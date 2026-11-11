@@ -1,0 +1,286 @@
+version: "3.8"
+
+x-crawler-env: &crawler-env
+  TZ: Asia/Taipei
+  WORKER_ACCOUNT: ${WORKER_ACCOUNT:?Set WORKER_ACCOUNT in .env}
+  WORKER_PASSWORD: ${WORKER_PASSWORD:?Set WORKER_PASSWORD in .env}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  CSV_OUTPUT_DIR: /data
+  MYSQL_HOST: mysql
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+  MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+  MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+
+services:
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER in .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env}
+    ports:
+      - target: 15672
+        published: 15674
+        protocol: tcp
+        mode: ingress
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - crawler_network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  flower:
+    image: mher/flower:2.0
+    environment:
+      TZ: Asia/Taipei
+    command:
+      - celery
+      - --broker=amqp://${WORKER_ACCOUNT:-worker}:${WORKER_PASSWORD:-worker}@rabbitmq:5672//
+      - flower
+      - --port=5555
+      - --basic-auth=${WORKER_ACCOUNT:-worker}:${WORKER_PASSWORD:-worker}
+    ports:
+      - target: 5555
+        published: 5557
+        protocol: tcp
+        mode: ingress
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      TZ: Asia/Taipei
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    configs:
+      - source: mysql_init
+        target: /docker-entrypoint-initdb.d/10-init.sql
+      - source: mysql_crawl_results
+        target: /docker-entrypoint-initdb.d/20-create-crawl-results.sql
+    networks:
+      crawler_network: {}
+      redash_mysql_network:
+        aliases:
+          - mysql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  api:
+    image: jacky325/tibame_api:${API_IMAGE_VERSION:-0.0.2}
+    hostname: "api.{{.Task.Slot}}"
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      TZ: Asia/Taipei
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Set MYSQL_DATABASE in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
+    ports:
+      - target: 8888
+        published: 8889
+        protocol: tcp
+        mode: ingress
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.api == true
+      restart_policy:
+        condition: any
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: "3306"
+    ports:
+      - target: 80
+        published: 8082
+        protocol: tcp
+        mode: ingress
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+
+  worker_airfryer:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    hostname: "airfryer.{{.Task.Slot}}"
+    environment: *crawler-env
+    command:
+      [
+        "celery",
+        "-A",
+        "crawler.worker",
+        "worker",
+        "--loglevel=info",
+        "-E",
+        "--concurrency=1",
+        "-Q",
+        "airfryer",
+        "--hostname=%h",
+      ]
+    volumes:
+      - crawler_data:/data
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.crawler_airfryer == true
+      restart_policy:
+        condition: any
+
+  worker_fridge:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    hostname: "fridge.{{.Task.Slot}}"
+    environment: *crawler-env
+    command:
+      [
+        "celery",
+        "-A",
+        "crawler.worker",
+        "worker",
+        "--loglevel=info",
+        "-E",
+        "--concurrency=1",
+        "-Q",
+        "fridge",
+        "--hostname=%h",
+      ]
+    volumes:
+      - crawler_data:/data
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.crawler_fridge == true
+      restart_policy:
+        condition: any
+
+  worker_tv:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    hostname: "tv.{{.Task.Slot}}"
+    environment: *crawler-env
+    command:
+      [
+        "celery",
+        "-A",
+        "crawler.worker",
+        "worker",
+        "--loglevel=info",
+        "-E",
+        "--concurrency=1",
+        "-Q",
+        "tv",
+        "--hostname=%h",
+      ]
+    volumes:
+      - crawler_data:/data
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.crawler_tv == true
+      restart_policy:
+        condition: any
+
+  worker_vacuum:
+    image: jacky325/tibame_crawler:${DOCKER_IMAGE_VERSION:-0.0.7}
+    hostname: "vacuum.{{.Task.Slot}}"
+    environment: *crawler-env
+    command:
+      [
+        "celery",
+        "-A",
+        "crawler.worker",
+        "worker",
+        "--loglevel=info",
+        "-E",
+        "--concurrency=1",
+        "-Q",
+        "vacuum",
+        "--hostname=%h",
+      ]
+    volumes:
+      - crawler_data:/data
+    networks:
+      - crawler_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.crawler_vacuum == true
+      restart_policy:
+        condition: any
+
+configs:
+  mysql_init:
+    file: ./database/init.sql
+  mysql_crawl_results:
+    file: ./database/migrations/001_create_crawl_results.sql
+
+volumes:
+  rabbitmq_data:
+  mysql_data:
+    external: true
+    name: home_appliance_comparison_mysql_data
+  crawler_data:
+
+networks:
+  crawler_network:
+    driver: overlay
+  redash_mysql_network:
+    driver: overlay
+    attachable: true

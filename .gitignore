@@ -1,0 +1,10 @@
+.env
+.env.airflow
+.env.airflow.flower
+.env.airflow.postgres.backup
+.env-tmp-*
+local.ini
+.venv/
+__pycache__/
+*.py[cod]
+/database/backups/

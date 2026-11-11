@@ -1,0 +1,19 @@
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.18 /uv /uvx /bin/
+COPY api/pyproject.toml api/uv.lock api/README.md ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY api/app ./app
+RUN uv sync --frozen --no-dev
+
+RUN useradd --create-home --uid 1000 api
+USER api
+
+EXPOSE 8888
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8888"]

@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.env
+.env.airflow
+.env.airflow.flower
+.env.airflow.postgres.backup
+.env-tmp-*
+local.ini
+pc_*_top20.csv
+data
+/database/backups

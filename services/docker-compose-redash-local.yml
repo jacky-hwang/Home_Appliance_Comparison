@@ -1,0 +1,124 @@
+name: home_appliance_redash
+
+x-redash-env: &redash-env
+  PYTHONUNBUFFERED: "0"
+  REDASH_LOG_LEVEL: INFO
+  REDASH_REDIS_URL: redis://redis:6379/0
+  REDASH_COOKIE_SECRET: ${REDASH_COOKIE_SECRET:?Set REDASH_COOKIE_SECRET in .env}
+  REDASH_SECRET_KEY: ${REDASH_SECRET_KEY:?Set REDASH_SECRET_KEY in .env}
+  REDASH_DATABASE_URL: "postgresql://postgres:${REDASH_POSTGRES_PASSWORD:?Set REDASH_POSTGRES_PASSWORD in .env}@postgres/postgres"
+  REDASH_WEB_WORKERS: "1"
+  SQLALCHEMY_ENABLE_POOL_PRE_PING: "True"
+
+x-redash-ready: &redash-ready
+  create_table:
+    condition: service_completed_successfully
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
+services:
+  redash:
+    image: redash/redash:10.1.0.b50633
+    command: server
+    restart: unless-stopped
+    depends_on: *redash-ready
+    environment: *redash-env
+    ports:
+      - "127.0.0.1:5006:5000"
+    networks:
+      - redash_internal
+
+  create_table:
+    image: redash/redash:10.1.0.b50633
+    command: python /app/manage.py database create_tables
+    restart: on-failure
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: *redash-env
+    networks:
+      - redash_internal
+
+  scheduler:
+    image: redash/redash:10.1.0.b50633
+    command: scheduler
+    restart: unless-stopped
+    depends_on: *redash-ready
+    environment:
+      <<: *redash-env
+      QUEUES: celery
+      WORKERS_COUNT: "1"
+    networks:
+      - redash_internal
+
+  scheduled_worker:
+    image: redash/redash:10.1.0.b50633
+    command: worker
+    restart: unless-stopped
+    depends_on: *redash-ready
+    environment:
+      <<: *redash-env
+      QUEUES: scheduled_queries,schemas
+      WORKERS_COUNT: "1"
+    networks:
+      - redash_internal
+      - appliance
+
+  adhoc_worker:
+    image: redash/redash:10.1.0.b50633
+    command: worker
+    restart: unless-stopped
+    depends_on: *redash-ready
+    environment:
+      <<: *redash-env
+      QUEUES: queries
+      WORKERS_COUNT: "2"
+    networks:
+      - redash_internal
+      - appliance
+
+  redis:
+    image: redis:5.0
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes:
+      - redash_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - redash_internal
+
+  postgres:
+    image: postgres:9.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${REDASH_POSTGRES_PASSWORD:?Set REDASH_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: postgres
+    volumes:
+      - redash_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - redash_internal
+
+networks:
+  redash_internal:
+    driver: bridge
+  appliance:
+    external: true
+    name: ${REDASH_MYSQL_NETWORK:-home_appliance_comparison_network}
+
+volumes:
+  redash_postgres_data:
+  redash_redis_data:
